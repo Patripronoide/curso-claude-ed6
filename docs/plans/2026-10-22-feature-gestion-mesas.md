@@ -154,7 +154,7 @@ Etiquetas: `[API]` agente de back, `[ADMIN]`, `[EMP]` y `[CLI]` agentes de cada 
 ### web-admin (`packages/web-admin`, rama `feat/5-gestion-mesas-web-admin`)
 
 - [x] **T15** `[ADMIN]` `features/tables/models/table.model.ts` y `services/table.service.ts` (CRUD según el contrato, `environment.apiUrl`). Compila (`npm run build -w @resttek/web-admin`). (~8 min)
-- [ ] **T16** `[ADMIN]` `store/table.store.ts` con el patrón del proyecto (signals privadas + `asReadonly()`, `loading`/`error`, `firstValueFrom`). Compila. (~8 min)
+- [x] **T16** `[ADMIN]` `store/table.store.ts` con el patrón del proyecto (signals privadas + `asReadonly()`, `loading`/`error`, `firstValueFrom`). Compila. (~8 min)
 - [ ] **T17** `[ADMIN]` `pages/table-list`: tabla con número, descripción, capacidad, estado (con badge) y acciones editar/eliminar con confirmación. Compila. (~10 min)
 - [ ] **T18** `[ADMIN]` `pages/table-form`: alta y edición con validación (número y capacidad enteros ≥ 1) y mensaje al recibir 409 de número duplicado. Compila. (~10 min)
 - [ ] **T19** `[ADMIN]` `tables.routes.ts`, ruta `restaurants/:restaurantId/tables` en `app.routes.ts` y tarjeta "Mesas" en el panel del restaurante. Compila y se navega a la pantalla. (~8 min)
