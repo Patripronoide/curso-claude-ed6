@@ -3,16 +3,18 @@ import { HttpClient } from '@angular/common/http'
 import { Observable } from 'rxjs'
 import { API_URL } from '@resttek/web-shared'
 import { Order } from '../models/order.model'
+import { TableSelectionStore } from '../store/table-selection.store'
 
 @Injectable({ providedIn: 'root' })
 export class OrderService {
   private readonly http = inject(HttpClient)
   private readonly apiUrl = inject(API_URL)
+  private readonly tableSelection = inject(TableSelectionStore)
 
   createOrder(restaurantId: string, items: { dishId: string; quantity: number; notes: string | null }[]): Observable<Order> {
     return this.http.post<Order>(`${this.apiUrl}/orders`, {
       restaurantId,
-      tableId: null,
+      tableId: this.tableSelection.forRestaurant(restaurantId)?.table.id ?? null,
       items
     })
   }

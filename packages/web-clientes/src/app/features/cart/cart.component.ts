@@ -3,6 +3,7 @@ import { Router, RouterLink } from '@angular/router'
 import { DecimalPipe } from '@angular/common'
 import { CartStore } from '../../core/store/cart.store'
 import { OrderService } from '../../core/services/order.service'
+import { TableSelectionStore } from '../../core/store/table-selection.store'
 
 @Component({
   selector: 'app-cart',
@@ -172,6 +173,7 @@ export class CartComponent {
   readonly cartStore = inject(CartStore)
   private readonly orderService = inject(OrderService)
   private readonly router = inject(Router)
+  private readonly tableSelection = inject(TableSelectionStore)
 
   readonly loading = signal(false)
   readonly error = signal<string | null>(null)
@@ -213,6 +215,13 @@ export class CartComponent {
         this.router.navigate(['/orders', order.id])
       },
       error: (err) => {
+        const code = err.error?.error
+        if (code === 'TableNotFoundError' || code === 'TableNotOccupiedError') {
+          // La mesa elegida ya no es válida: hay que volver a elegir mesa
+          this.tableSelection.clear()
+          this.router.navigate(['/restaurants', restaurantId, 'table'])
+          return
+        }
         this.error.set('Error al confirmar el pedido. Inténtalo de nuevo.')
         this.loading.set(false)
       }
