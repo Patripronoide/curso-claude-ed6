@@ -52,15 +52,16 @@ src/app/
 ├── app.routes.ts
 ├── core/
 │   ├── layout/            → shell.component.ts
-│   ├── models/            → dish, order, restaurant
-│   ├── services/          → dish, order, restaurant
-│   └── store/             → cart.store.ts
+│   ├── models/            → dish, order, restaurant, table
+│   ├── services/          → dish, order, restaurant, table
+│   └── store/             → cart.store.ts, table-selection.store.ts
 └── features/
     ├── cart/cart.component.ts
     ├── menu/restaurant-menu.component.ts
     ├── orders/my-orders.component.ts
     ├── orders/order-detail.component.ts
-    └── restaurants/restaurant-list.component.ts
+    ├── restaurants/restaurant-list.component.ts
+    └── tables/table-picker.component.ts      → personas + mesa disponible antes de la carta
 ```
 
 Ninguna de las tres aplicaciones tiene carpeta `shared/` propia: lo compartido vive en `@resttek/web-shared`.
@@ -110,7 +111,7 @@ Caso particular en `web-empleados`:
 
 ### `web-clientes`: el patrón Store casi no se usa
 
-En `web-clientes` el patrón Store **no es la norma**: el único store real es `CartStore`, y es puramente local (sin HTTP) — vacía el carrito si añades un plato de otro restaurante, pero no envuelve ninguna llamada a la API.
+En `web-clientes` el patrón Store **no es la norma**: los únicos stores son `CartStore` y `TableSelectionStore` (mesa elegida y número de personas), ambos puramente locales (sin HTTP) — vacía el carrito si añades un plato de otro restaurante, pero no envuelve ninguna llamada a la API.
 
 Para todo lo demás (restaurantes, carta/platos, confirmación y consulta de pedidos) los componentes de `features/` inyectan el `*Service` correspondiente directamente y llaman a sus métodos con `.subscribe({ next, error })`, sin pasar por ningún store ni por `firstValueFrom`:
 
@@ -307,6 +308,14 @@ export const routes: Routes = [
     }
 ]
 ```
+
+### Mesas en los frontends
+
+- `web-admin`: feature `features/tables` (modelo, servicio, store, `table-list`, `table-form`) bajo `restaurants/:restaurantId/tables`, con tarjeta "Mesas" en el panel del restaurante.
+- `web-empleados`: `features/tables` (servicio y `TableStore` con polling cada 30 s). El tablero de mesas está en la página Salón; el `cocinero` no ve el selector de estado. `OrderStore.ordersByTable` agrupa los pedidos activos por `tableId`.
+- `web-clientes`: ruta `restaurants/:id/table` (`TablePickerComponent`): personas → mesas disponibles → "Continuar" ocupa la mesa y navega a la carta. La carta redirige a ese paso si no hay mesa elegida para el restaurante, y `OrderService.createOrder` envía su `tableId`.
+
+Los errores de la API se distinguen por el campo `error` (`err.error.error`), nunca por `message`.
 
 El lazy loading **no es universal**: `web-clientes` carga `LoginComponent` y `RegisterComponent` de forma eager con `component:`, y `web-empleados` hace lo mismo con su `ShellComponent`.
 

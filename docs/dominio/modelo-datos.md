@@ -14,6 +14,7 @@ erDiagram
     restaurants ||--o{ orders : "tiene"
     dishes ||--o{ dish_ingredients : "contiene"
     ingredients ||--o{ dish_ingredients : "usado en"
+    restaurants ||--o{ restaurant_tables : "tiene"
     orders ||--o{ order_items : "contiene"
     dishes ||--o{ order_items : "pedido como"
 
@@ -66,6 +67,17 @@ erDiagram
         TEXT dish_id PK_FK
         TEXT ingredient_id PK_FK
         REAL quantity
+    }
+
+    restaurant_tables {
+        TEXT id PK
+        TEXT restaurant_id FK
+        INTEGER number
+        TEXT description
+        INTEGER capacity
+        TEXT status
+        TEXT created_at
+        TEXT updated_at
     }
 
     orders {
@@ -182,6 +194,29 @@ Relación muchos-a-muchos entre platos e ingredientes.
 
 ---
 
+### `restaurant_tables`
+
+Mesas de cada restaurante. Las gestiona el administrador; los empleados cambian su estado y el cliente ocupa una libre antes de pedir.
+
+| Columna | Tipo | Nullable | Descripción |
+| --- | --- | --- | --- |
+| `id` | TEXT | No | UUID, clave primaria |
+| `restaurant_id` | TEXT | No | FK → `restaurants.id` |
+| `number` | INTEGER | No | Número de mesa (1-9999), único dentro del restaurante |
+| `description` | TEXT | Sí | Descripción (máx. 255 caracteres; vacía se guarda como null) |
+| `capacity` | INTEGER | No | Número de comensales (1-1000) |
+| `status` | TEXT | No | Estado: `libre` (por defecto), `ocupada`, `reservada` |
+| `created_at` | TEXT | No | Fecha de creación |
+| `updated_at` | TEXT | No | Fecha de última actualización |
+
+**Restricciones:**
+
+- `UNIQUE(restaurant_id, number)`.
+- No se puede borrar una mesa con pedidos asociados (lo comprueba el servicio y responde 409).
+- La ocupación es atómica: `UPDATE ... SET status = 'ocupada' WHERE id = ? AND status = 'libre'`.
+
+---
+
 ### `orders`
 
 Pedidos de los clientes.
@@ -190,7 +225,7 @@ Pedidos de los clientes.
 | --- | --- | --- | --- |
 | `id` | TEXT | No | UUID, clave primaria |
 | `restaurant_id` | TEXT | No | FK → `restaurants.id` |
-| `table_id` | TEXT | Sí | Identificador de mesa (opcional) |
+| `table_id` | TEXT | Sí | `id` de la mesa (`restaurant_tables.id`). **Sin FK**: la validación la hace `OrderService` (la mesa debe existir en el restaurante y estar `ocupada`). Los pedidos antiguos pueden traer un valor libre sin mesa |
 | `client_id` | TEXT | Sí | ID del cliente (opcional) |
 | `created_at` | TEXT | No | Fecha de creación |
 

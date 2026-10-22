@@ -176,8 +176,8 @@ Etiquetas: `[API]` agente de back, `[ADMIN]`, `[EMP]` y `[CLI]` agentes de cada 
 
 ### Integración y documentación
 
-- [ ] **T29** `[COORD]` Integración: con la API real arrancada y `npm run seed`, recorrer el flujo completo (admin crea mesa → cliente la ocupa y pide → empleado ve el pedido y la libera) y contrastar las respuestas con `docs/api/mesas.openapi.yaml`. Se anotan las diferencias y se corrigen en la rama que corresponda. (~15 min)
-- [ ] **T30** `[COORD]` Documentación en español: `docs/dominio/modelo-datos.md` (tabla `restaurant_tables` y diagrama), `docs/arquitectura/arquitectura-api.md`, `docs/arquitectura/arquitectura-frontend.md` y `CLAUDE.md` (lista de 409 del `errorHandler`, ruta pública de mesas). Se comprueba que describe lo realmente implementado. (~10 min)
+- [x] **T29** `[COORD]` Integración: con la API real arrancada y `npm run seed`, recorrer el flujo completo (admin crea mesa → cliente la ocupa y pide → empleado ve el pedido y la libera) y contrastar las respuestas con `docs/api/mesas.openapi.yaml`. Se anotan las diferencias y se corrigen en la rama que corresponda. (~15 min)
+- [x] **T30** `[COORD]` Documentación en español: `docs/dominio/modelo-datos.md` (tabla `restaurant_tables` y diagrama), `docs/arquitectura/arquitectura-api.md`, `docs/arquitectura/arquitectura-frontend.md` y `CLAUDE.md` (lista de 409 del `errorHandler`, ruta pública de mesas). Se comprueba que describe lo realmente implementado. (~10 min)
 
 ## 7. Plan de verificación
 

@@ -40,18 +40,18 @@ Credenciales de seed: la contraseña de cada usuario es su propio email (p. ej. 
 En `packages/api/src` conviven **dos estilos**; sigue el del dominio que estés tocando:
 
 - **Hexagonal + DDD, solo `employee`** (`contexts/employee/{domain,application,infrastructure}`): entidad `Employee` con constructor privado + `create()` que valida; value objects `Email` y `Role`; casos de uso con un único `execute()`; interfaces con prefijo `I`. El cableado de dependencias está en `infrastructure/http/dependencies.ts`.
-- **Por capas para `restaurant`, `dish`, `ingredient`, `order`**: carpetas `models/` (interfaces planas + funciones `normalizeX()`), `repositories/` (interfaz sin prefijo + implementación SQLite en el mismo fichero), `services/` (validación y lógica), `controllers/`, `routes/`. La composición de dependencias se hace en el propio fichero de rutas.
+- **Por capas para `restaurant`, `dish`, `ingredient`, `order`, `table`**: carpetas `models/` (interfaces planas + funciones `normalizeX()`), `repositories/` (interfaz sin prefijo + implementación SQLite en el mismo fichero), `services/` (validación y lógica), `controllers/`, `routes/`. La composición de dependencias se hace en el propio fichero de rutas.
 - `contexts/shared/` contiene `Email`, los middlewares `authenticate`/`authorize(roles)` y el `errorHandler`.
 
 Detalles que no son obvios:
 
 - Imports con path aliases (`@config/*`, `@services/*`, `@employee/*`, `@shared/*`…, ver `tsconfig.json`) y **siempre con extensión `.js`** (ESM, `module: nodenext`).
 - Routers montados bajo `/restaurants/:restaurantId/...` necesitan `Router({ mergeParams: true })`.
-- Errores: heredan de `AppError` (`errors/DomainErrors.ts`); el `errorHandler` asigna el código HTTP **por el nombre de la clase** (lista explícita de 404, `InvalidCredentialsError` → 401, resto → 400). Un error nuevo de "no encontrado" hay que añadirlo a esa lista. `OrderController` es la excepción: gestiona sus errores con `try/catch` propio en vez de `next(error)`.
+- Errores: heredan de `AppError` (`errors/DomainErrors.ts`); el `errorHandler` asigna el código HTTP **por el nombre de la clase** (lista explícita de 404, lista `CONFLICT_ERRORS` → 409, `InvalidCredentialsError` → 401, resto → 400). Un error nuevo de "no encontrado" o de conflicto hay que añadirlo a su lista. `OrderController` es la excepción: gestiona sus errores con `try/catch` propio en vez de `next(error)`.
 - Base de datos: `dbConfig` (`config/database.ts`) es una instancia exportada; las tablas se crean en código al arrancar (`runInitialMigrations`). Con `NODE_ENV=test` usa `:memory:`; si no, `packages/api/resttek.db`. Columnas en `snake_case` mapeadas a `camelCase` con alias en el SQL.
 - Al crear un pedido, cada ítem con `quantity: N` se expande a N filas de `order_items` con `quantity: 1` para seguir el estado de cada unidad.
 - Roles: `admin`, `manager` (gerente, no `'gerente'`), `camarero`, `cocinero`, `cliente`.
-- Tests unitarios junto al código (`*.test.ts`), con dobles en `contexts/employee/application/mocks/` y `repositories/mocks/`. Los tests de repositorio usan SQLite en memoria. No hay tests HTTP (supertest instalado pero sin usar).
+- Tests unitarios junto al código (`*.test.ts`), con dobles en `contexts/employee/application/mocks/` y `repositories/mocks/`. Los tests de repositorio usan SQLite en memoria. Solo mesas y pedidos tienen tests HTTP (`routes/*.http.test.ts`, con `app.listen(0)` + `fetch`; supertest está instalado pero sin usar).
 
 ## Arquitectura de los frontends
 
