@@ -1,9 +1,10 @@
 import { Component, inject, OnInit, signal, computed } from '@angular/core'
-import { ActivatedRoute, RouterLink } from '@angular/router'
+import { ActivatedRoute, Router, RouterLink } from '@angular/router'
 import { DecimalPipe } from '@angular/common'
 import { LucideAngularModule } from 'lucide-angular'
 import { DishService } from '../../core/services/dish.service'
 import { RestaurantService } from '../../core/services/restaurant.service'
+import { TableSelectionStore } from '../../core/store/table-selection.store'
 import { CartStore, Dish } from '../../core/store/cart.store'
 import { Restaurant } from '../../core/models/restaurant.model'
 
@@ -17,6 +18,13 @@ import { Restaurant } from '../../core/models/restaurant.model'
         <div>
           <a routerLink="/restaurants" class="back-link">← Volver a restaurantes</a>
           <h1>{{ restaurant()?.name || 'Cargando...' }}</h1>
+          @if (selectedTable(); as table) {
+            <p class="table-info">
+              Mesa {{ table.number }} · {{ table.people }}
+              {{ table.people === 1 ? 'persona' : 'personas' }}
+              · <a [routerLink]="['/restaurants', restaurantId(), 'table']">Cambiar mesa</a>
+            </p>
+          }
         </div>
       </div>
 
@@ -93,6 +101,10 @@ import { Restaurant } from '../../core/models/restaurant.model'
       color: var(--text-muted);
       margin-bottom: 8px;
       display: inline-block;
+    }
+    .table-info {
+      color: var(--text-secondary);
+      font-size: 14px;
     }
     .menu-layout {
       display: grid;
@@ -209,11 +221,15 @@ import { Restaurant } from '../../core/models/restaurant.model'
 })
 export class RestaurantMenuComponent implements OnInit {
   private readonly route = inject(ActivatedRoute)
+  private readonly router = inject(Router)
   private readonly dishService = inject(DishService)
   private readonly restaurantService = inject(RestaurantService)
   readonly cartStore = inject(CartStore)
+  private readonly tableSelection = inject(TableSelectionStore)
 
   readonly restaurant = signal<Restaurant | null>(null)
+  readonly restaurantId = computed(() => this.route.snapshot.paramMap.get('id')!)
+  readonly selectedTable = signal<{ number: number; people: number } | null>(null)
   readonly dishes = signal<Dish[]>([])
   readonly loading = signal(true)
   readonly error = signal<string | null>(null)
@@ -234,6 +250,13 @@ export class RestaurantMenuComponent implements OnInit {
 
   ngOnInit(): void {
     const restaurantId = this.route.snapshot.paramMap.get('id')!
+    const selection = this.tableSelection.forRestaurant(restaurantId)
+    if (!selection) {
+      // Sin mesa elegida para este restaurante: vuelve al paso previo
+      this.router.navigate(['/restaurants', restaurantId, 'table'], { replaceUrl: true })
+      return
+    }
+    this.selectedTable.set({ number: selection.table.number, people: selection.people })
     this.loadData(restaurantId)
   }
 

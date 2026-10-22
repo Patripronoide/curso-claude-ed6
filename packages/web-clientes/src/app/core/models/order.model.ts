@@ -14,6 +14,7 @@ export interface Order {
   restaurantName?: string
   restaurantLogoUrl?: string | null
   tableId: string | null
+  tableNumber: number | null
   clientId: string | null
   createdAt: string
   items: OrderItem[]
