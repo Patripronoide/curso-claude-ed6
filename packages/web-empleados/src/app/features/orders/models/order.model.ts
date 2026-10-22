@@ -15,6 +15,8 @@ export interface Order {
   id: string
   restaurantId: string
   tableId: string | null
+  /** Número de la mesa, solo para mostrar; null = pedido sin mesa. Asociar siempre por tableId. */
+  tableNumber: number | null
   clientId: string | null
   createdAt: string
   items: OrderItem[]

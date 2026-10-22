@@ -14,6 +14,22 @@ export class OrderStore {
   private pollingInterval: ReturnType<typeof setInterval> | null = null;
 
   readonly orders = this._orders.asReadonly();
+
+  /**
+   * Pedidos activos agrupados por `tableId` (= Table.id). Los pedidos sin mesa
+   * (`tableId` null o `tableNumber` null, p. ej. legacy) no aparecen en el mapa.
+   * Una mesa sin pedidos activos simplemente no tiene entrada.
+   */
+  readonly ordersByTable = computed(() => {
+    const byTable = new Map<string, Order[]>();
+    for (const order of this._orders()) {
+      if (!order.tableId || order.tableNumber == null) continue;
+      const list = byTable.get(order.tableId);
+      if (list) list.push(order);
+      else byTable.set(order.tableId, [order]);
+    }
+    return byTable;
+  });
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
 
@@ -52,6 +68,7 @@ export class OrderStore {
   }
 
   startPolling(restaurantId: string): void {
+    this.stopPolling();
     this.loadOrders(restaurantId);
     this.pollingInterval = setInterval(() => {
       this.loadOrders(restaurantId);
