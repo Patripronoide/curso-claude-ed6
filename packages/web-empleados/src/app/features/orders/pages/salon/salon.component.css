@@ -140,3 +140,110 @@
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+.tables-section h2,
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.tables-section {
+  margin-bottom: 32px;
+}
+
+.tables-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.table-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.table-card.table-ocupada {
+  border-color: var(--orange);
+}
+
+.table-card.table-reservada {
+  border-color: var(--yellow);
+}
+
+.table-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.table-number {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.table-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.badge-mesa-libre {
+  background: var(--green-glow);
+  color: var(--green-light);
+}
+
+.badge-mesa-ocupada {
+  background: var(--orange-glow);
+  color: var(--orange);
+}
+
+.badge-mesa-reservada {
+  background: var(--yellow-glow);
+  color: var(--yellow);
+}
+
+.table-status-select {
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
+
+.table-orders {
+  border-top: 1px solid var(--border-color);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.table-order {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.table-order-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.table-no-orders {
+  font-size: 12px;
+  color: var(--text-muted);
+}
