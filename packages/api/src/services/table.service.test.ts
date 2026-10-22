@@ -9,7 +9,8 @@ import {
     InvalidTableStatusError,
     RestaurantNotFoundError,
     DuplicatedTableNumberError,
-    TableNotFoundError
+    TableNotFoundError,
+    TableHasOrdersError
 } from '@errors/DomainErrors.js'
 
 const now = new Date().toISOString()
@@ -218,6 +219,59 @@ describe('TableService', () => {
 
         it('devuelve [] para un restaurante inexistente', async () => {
             expect(await service.findByRestaurantId('no-existe')).toEqual([])
+        })
+    })
+
+    describe('delete', () => {
+        it('elimina una mesa sin pedidos', async () => {
+            const created = await service.create('r1', validInput)
+            await service.delete('r1', created.id)
+            expect(await repo.findById(created.id)).toBeNull()
+        })
+
+        it('lanza TableNotFoundError si no existe o es de otro restaurante', async () => {
+            const created = await service.create('r1', validInput)
+            await expect(service.delete('r1', 'no-existe')).rejects.toThrow(TableNotFoundError)
+            await expect(service.delete('r2', created.id)).rejects.toThrow(TableNotFoundError)
+            expect(await repo.findById(created.id)).not.toBeNull()
+        })
+
+        it('lanza TableHasOrdersError si la mesa tiene pedidos y no la borra', async () => {
+            const created = await service.create('r1', validInput)
+            repo.tablesWithOrders.add(created.id)
+            await expect(service.delete('r1', created.id)).rejects.toThrow(TableHasOrdersError)
+            expect(await repo.findById(created.id)).not.toBeNull()
+        })
+    })
+
+    describe('changeStatus', () => {
+        it('cambia el estado normalizado y actualiza updatedAt', async () => {
+            const created = await service.create('r1', { ...validInput, status: 'ocupada' })
+            await new Promise(resolve => setTimeout(resolve, 2))
+
+            const updated = await service.changeStatus('r1', created.id, ' Libre ')
+
+            expect(updated.status).toBe('libre')
+            expect(updated.updatedAt).not.toBe(created.updatedAt)
+            expect(updated.createdAt).toBe(created.createdAt)
+            expect((await repo.findById(created.id))?.status).toBe('libre')
+        })
+
+        it('es idempotente al poner el mismo estado', async () => {
+            const created = await service.create('r1', validInput)
+            const updated = await service.changeStatus('r1', created.id, 'libre')
+            expect(updated.status).toBe('libre')
+        })
+
+        it('lanza TableNotFoundError antes de validar el estado', async () => {
+            await expect(service.changeStatus('r1', 'no-existe', 'rota')).rejects.toThrow(TableNotFoundError)
+        })
+
+        it('lanza InvalidTableStatusError con un estado inválido o ausente', async () => {
+            const created = await service.create('r1', validInput)
+            await expect(service.changeStatus('r1', created.id, 'rota')).rejects.toThrow(InvalidTableStatusError)
+            await expect(service.changeStatus('r1', created.id, undefined as unknown as string))
+                .rejects.toThrow(InvalidTableStatusError)
         })
     })
 })

@@ -9,7 +9,8 @@ import {
     TableDescriptionTooLongError,
     RestaurantNotFoundError,
     DuplicatedTableNumberError,
-    TableNotFoundError
+    TableNotFoundError,
+    TableHasOrdersError
 } from '@errors/DomainErrors.js'
 
 const MAX_NUMBER = 9999
@@ -77,6 +78,25 @@ export class TableService {
             updatedAt: new Date().toISOString()
         }
 
+        await this.tableRepository.save(updated)
+        return updated
+    }
+
+    async delete(restaurantId: string, id: string): Promise<void> {
+        await this.findById(restaurantId, id)
+        if (await this.tableRepository.hasOrders(id)) {
+            throw new TableHasOrdersError()
+        }
+        await this.tableRepository.delete(id)
+    }
+
+    async changeStatus(restaurantId: string, id: string, status: string): Promise<Table> {
+        const existing = await this.findById(restaurantId, id)
+        const updated: Table = {
+            ...existing,
+            status: normalizeTableStatus(status),
+            updatedAt: new Date().toISOString()
+        }
         await this.tableRepository.save(updated)
         return updated
     }
