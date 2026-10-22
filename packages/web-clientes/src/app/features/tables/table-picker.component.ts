@@ -1,8 +1,10 @@
 import { Component, inject, OnInit, signal } from '@angular/core'
-import { ActivatedRoute, RouterLink } from '@angular/router'
+import { ActivatedRoute, Router, RouterLink } from '@angular/router'
+import { HttpErrorResponse } from '@angular/common/http'
 import { FormsModule } from '@angular/forms'
 import { TableService } from '../../core/services/table.service'
 import { RestaurantService } from '../../core/services/restaurant.service'
+import { TableSelectionStore } from '../../core/store/table-selection.store'
 import { Table } from '../../core/models/table.model'
 import { Restaurant } from '../../core/models/restaurant.model'
 
@@ -168,8 +170,10 @@ import { Restaurant } from '../../core/models/restaurant.model'
 })
 export class TablePickerComponent implements OnInit {
   private readonly route = inject(ActivatedRoute)
+  private readonly router = inject(Router)
   private readonly tableService = inject(TableService)
   private readonly restaurantService = inject(RestaurantService)
+  private readonly selectionStore = inject(TableSelectionStore)
 
   private restaurantId = ''
 
@@ -233,6 +237,53 @@ export class TablePickerComponent implements OnInit {
   }
 
   continuar(): void {
-    // Se implementa en T27 (ocupar la mesa y navegar a la carta)
+    const people = this.people()
+    const table = this.tables().find((t) => t.id === this.selectedId())
+    if (!table || people === null) return
+
+    this.occupying.set(true)
+    this.notice.set(null)
+    this.tableService.occupy(this.restaurantId, table.id, people).subscribe({
+      next: (occupied) => {
+        this.selectionStore.select(this.restaurantId, occupied, people)
+        this.occupying.set(false)
+        this.router.navigate(['/restaurants', this.restaurantId])
+      },
+      error: (err) => {
+        this.occupying.set(false)
+        this.handleOccupyError(err, people)
+      }
+    })
+  }
+
+  /** Los errores de negocio se distinguen por `err.error.error`, nunca por `message`. */
+  private handleOccupyError(err: HttpErrorResponse, people: number): void {
+    // El 401 lo trata el errorInterceptor de web-shared (redirige a /login)
+    if (err.status === 401) return
+
+    if (err.status === 403) {
+      this.notice.set('Solo los clientes pueden ocupar una mesa')
+      return
+    }
+
+    switch (err.error?.error) {
+      case 'TableNotAvailableError':
+        this.loadTables(people)
+        this.notice.set('Esa mesa acaba de ocuparse. Elige otra de la lista actualizada.')
+        break
+      case 'TableCapacityExceededError':
+        this.loadTables(people)
+        this.notice.set('En esa mesa no caben tantas personas. Elige una de mayor capacidad.')
+        break
+      case 'TableNotFoundError':
+        this.loadTables(people)
+        this.notice.set('Esa mesa ya no existe. Elige otra de la lista actualizada.')
+        break
+      case 'InvalidPeopleError':
+        this.peopleError.set('Indica un número entero de personas igual o mayor que 1')
+        break
+      default:
+        this.notice.set('No se ha podido ocupar la mesa. Inténtalo de nuevo.')
+    }
   }
 }

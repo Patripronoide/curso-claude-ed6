@@ -15,6 +15,10 @@ export const routes: Routes = [
         loadComponent: () => import('./features/restaurants/restaurant-list.component').then(m => m.RestaurantListComponent)
       },
       {
+        path: 'restaurants/:id/table',
+        loadComponent: () => import('./features/tables/table-picker.component').then(m => m.TablePickerComponent)
+      },
+      {
         path: 'restaurants/:id',
         loadComponent: () => import('./features/menu/restaurant-menu.component').then(m => m.RestaurantMenuComponent)
       },

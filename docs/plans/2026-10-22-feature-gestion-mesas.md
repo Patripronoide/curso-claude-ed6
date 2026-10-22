@@ -171,7 +171,7 @@ Etiquetas: `[API]` agente de back, `[ADMIN]`, `[EMP]` y `[CLI]` agentes de cada 
 
 - [x] **T25** `[CLI]` `core/models/table.model.ts`, `core/services/table.service.ts` (`getAvailable(restaurantId, people)`, `occupy(restaurantId, id, people)`) y `core/store/table-selection.store.ts` (mesa elegida y personas, local). Compila (`npm run build -w @resttek/web-clientes`). (~8 min)
 - [x] **T26** `[CLI]` `features/tables/table-picker.component.ts`: paso 1 número de personas (entero ≥ 1); paso 2 mesas disponibles (número, descripción, capacidad) con selección; botón "Continuar" deshabilitado sin mesa. Estados de carga, vacío ("no hay mesas para tantas personas") y error. Compila. (~15 min)
-- [ ] **T27** `[CLI]` "Continuar" llama a `occupy`; si responde 409 se avisa de que la mesa acaba de ocuparse y se recarga la lista; si va bien se guarda la mesa y se navega a la carta. Ruta `restaurants/:id/table` en `app.routes.ts` y enlace desde `restaurant-list`. Compila. (~10 min)
+- [x] **T27** `[CLI]` "Continuar" llama a `occupy`; si responde 409 se avisa de que la mesa acaba de ocuparse y se recarga la lista; si va bien se guarda la mesa y se navega a la carta. Ruta `restaurants/:id/table` en `app.routes.ts` y enlace desde `restaurant-list`. Compila. (~10 min)
 - [ ] **T28** `[CLI]` `restaurant-menu.component` redirige al paso previo si no hay mesa elegida para ese restaurante, y `OrderService.createOrder` envía el `tableId` del store en lugar de `null`; se muestra el número de mesa en la carta. Compila. (~10 min)
 
 ### Integración y documentación
