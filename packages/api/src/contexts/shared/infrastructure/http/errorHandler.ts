@@ -5,7 +5,15 @@ const NOT_FOUND_ERRORS = [
     'EmployeeNotFoundError',
     'RestaurantNotFoundError',
     'IngredientNotFoundError',
-    'DishNotFoundError'
+    'DishNotFoundError',
+    'TableNotFoundError'
+]
+
+const CONFLICT_ERRORS = [
+    'DuplicatedTableNumberError',
+    'TableNotAvailableError',
+    'TableCapacityExceededError',
+    'TableHasOrdersError'
 ]
 
 const UNAUTHORIZED_ERRORS = [
@@ -18,6 +26,8 @@ export const errorHandler = (err: any, _req: Request, res: Response, _next: Next
 
         if (NOT_FOUND_ERRORS.includes(err.name)) {
             statusCode = 404
+        } else if (CONFLICT_ERRORS.includes(err.name)) {
+            statusCode = 409
         } else if (UNAUTHORIZED_ERRORS.includes(err.name)) {
             statusCode = 401
         }
