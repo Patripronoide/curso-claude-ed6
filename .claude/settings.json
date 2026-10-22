@@ -1,0 +1,19 @@
+{  
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Grep|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "t=$(jq -r \"[.tool_input.file_path, .tool_input.path, .tool_input.glob, .tool_input.pattern, .tool_input.command] | map(select(. != null)) | join(\\\" \\\")\"); if printf \"%s\" \"$t\" | grep -q \"CONSTANTS\\\\.js\"; then echo \"Bloqueado: el acceso a CONSTANTS.js no está permitido.\" >&2; exit 2; fi; exit 0",
+            "statusMessage": "Comprobando archivo protegido..."
+          }
+        ]
+      }
+    ]
+  },
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  }
+}
