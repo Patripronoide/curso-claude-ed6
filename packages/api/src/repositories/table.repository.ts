@@ -21,6 +21,9 @@ export interface TableRepository {
     findByRestaurantId(restaurantId: string, status?: TableStatusType): Promise<Table[]>
     save(table: Table): Promise<void>
     delete(id: string): Promise<void>
+    findAvailable(restaurantId: string, people: number): Promise<Table[]>
+    occupyIfFree(id: string, restaurantId: string): Promise<boolean>
+    hasOrders(id: string): Promise<boolean>
 }
 
 export class SqliteTableRepository implements TableRepository {
@@ -56,6 +59,28 @@ export class SqliteTableRepository implements TableRepository {
 
     async delete(id: string): Promise<void> {
         await this.db.run('DELETE FROM restaurant_tables WHERE id = ?', [id])
+    }
+
+    async findAvailable(restaurantId: string, people: number): Promise<Table[]> {
+        const rows = await this.db.all<TableRow>(
+            `${SELECT_TABLE} WHERE restaurant_id = ? AND status = 'libre' AND capacity >= ? ORDER BY capacity ASC, number ASC`,
+            [restaurantId, people]
+        )
+        return rows.map(row => this.mapToTable(row))
+    }
+
+    // Atómico: solo cambia la fila si sigue libre, así dos clientes no pueden ocupar la misma mesa.
+    async occupyIfFree(id: string, restaurantId: string): Promise<boolean> {
+        const result = await this.db.run(
+            "UPDATE restaurant_tables SET status = 'ocupada', updated_at = ? WHERE id = ? AND restaurant_id = ? AND status = 'libre'",
+            [new Date().toISOString(), id, restaurantId]
+        )
+        return result.changes > 0
+    }
+
+    async hasOrders(id: string): Promise<boolean> {
+        const row = await this.db.get<{ found: number }>('SELECT 1 as found FROM orders WHERE table_id = ? LIMIT 1', [id])
+        return row !== undefined
     }
 
     private mapToTable(row: TableRow): Table {

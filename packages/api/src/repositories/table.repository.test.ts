@@ -82,4 +82,78 @@ describe('SqliteTableRepository (Integration)', () => {
             expect(await repo.findById('t1')).toBeNull()
         })
     })
+
+    describe('findAvailable', () => {
+        beforeAll(async () => {
+            await repo.save(buildTable({ id: 'a1', number: 101, capacity: 6 }))
+            await repo.save(buildTable({ id: 'a2', number: 102, capacity: 4 }))
+            await repo.save(buildTable({ id: 'a3', number: 100, capacity: 4 }))
+            await repo.save(buildTable({ id: 'a4', number: 103, capacity: 2 }))
+            await repo.save(buildTable({ id: 'a5', number: 104, capacity: 8, status: 'ocupada' }))
+            await repo.save(buildTable({ id: 'a6', number: 105, capacity: 8, status: 'reservada' }))
+            await repo.save(buildTable({ id: 'a7', number: 101, capacity: 8, restaurantId: 'r2' }))
+        })
+
+        it('devuelve solo mesas libres del restaurante con capacidad suficiente, por capacidad y número', async () => {
+            const tables = await repo.findAvailable('r1', 3)
+            expect(tables.map(t => t.id)).toEqual(['a3', 'a2', 'a1'])
+        })
+
+        it('incluye mesas con capacidad igual al número de personas', async () => {
+            const tables = await repo.findAvailable('r1', 6)
+            expect(tables.map(t => t.id)).toEqual(['a1'])
+        })
+
+        it('devuelve [] si no hay mesas para tantas personas', async () => {
+            expect(await repo.findAvailable('r1', 50)).toEqual([])
+        })
+    })
+
+    describe('occupyIfFree', () => {
+        beforeAll(async () => {
+            await repo.save(buildTable({ id: 'o1', number: 200 }))
+            await repo.save(buildTable({ id: 'o2', number: 201, status: 'reservada' }))
+        })
+
+        it('ocupa una mesa libre y actualiza updatedAt', async () => {
+            expect(await repo.occupyIfFree('o1', 'r1')).toBe(true)
+            const found = await repo.findById('o1')
+            expect(found?.status).toBe('ocupada')
+            expect(found?.updatedAt).not.toBe(now)
+        })
+
+        it('devuelve false la segunda vez (ya ocupada)', async () => {
+            expect(await repo.occupyIfFree('o1', 'r1')).toBe(false)
+        })
+
+        it('devuelve false con una mesa reservada', async () => {
+            expect(await repo.occupyIfFree('o2', 'r1')).toBe(false)
+            expect((await repo.findById('o2'))?.status).toBe('reservada')
+        })
+
+        it('devuelve false si la mesa es de otro restaurante', async () => {
+            await repo.save(buildTable({ id: 'o3', number: 202 }))
+            expect(await repo.occupyIfFree('o3', 'r2')).toBe(false)
+            expect((await repo.findById('o3'))?.status).toBe('libre')
+        })
+    })
+
+    describe('hasOrders', () => {
+        beforeAll(async () => {
+            await repo.save(buildTable({ id: 'h1', number: 300 }))
+            await repo.save(buildTable({ id: 'h2', number: 301 }))
+            await db.run(
+                'INSERT INTO orders (id, restaurant_id, table_id, client_id, created_at) VALUES (?, ?, ?, ?, ?)',
+                ['order-h1', 'r1', 'h1', null, now]
+            )
+        })
+
+        it('devuelve true si la mesa tiene pedidos', async () => {
+            expect(await repo.hasOrders('h1')).toBe(true)
+        })
+
+        it('devuelve false si la mesa no tiene pedidos', async () => {
+            expect(await repo.hasOrders('h2')).toBe(false)
+        })
+    })
 })
