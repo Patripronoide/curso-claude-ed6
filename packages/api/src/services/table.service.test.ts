@@ -10,7 +10,10 @@ import {
     RestaurantNotFoundError,
     DuplicatedTableNumberError,
     TableNotFoundError,
-    TableHasOrdersError
+    TableHasOrdersError,
+    InvalidPeopleError,
+    TableNotAvailableError,
+    TableCapacityExceededError
 } from '@errors/DomainErrors.js'
 
 const now = new Date().toISOString()
@@ -272,6 +275,71 @@ describe('TableService', () => {
             await expect(service.changeStatus('r1', created.id, 'rota')).rejects.toThrow(InvalidTableStatusError)
             await expect(service.changeStatus('r1', created.id, undefined as unknown as string))
                 .rejects.toThrow(InvalidTableStatusError)
+        })
+    })
+
+    describe('listAvailable', () => {
+        it('devuelve las mesas libres con capacidad suficiente ordenadas por capacidad y número', async () => {
+            await service.create('r1', { number: 4, capacity: 6 })
+            await service.create('r1', { number: 7, capacity: 4 })
+            await service.create('r1', { number: 5, capacity: 4 })
+            await service.create('r1', { number: 1, capacity: 2 })
+            await service.create('r1', { number: 2, capacity: 8, status: 'ocupada' })
+            await service.create('r1', { number: 3, capacity: 8, status: 'reservada' })
+
+            const tables = await service.listAvailable('r1', 3)
+            expect(tables.map(t => t.number)).toEqual([5, 7, 4])
+        })
+
+        it('devuelve [] con un restaurante inexistente', async () => {
+            expect(await service.listAvailable('no-existe', 2)).toEqual([])
+        })
+
+        it.each([0, -1, 1.5, NaN, '3', undefined, null])('lanza InvalidPeopleError con people = %s', async (people) => {
+            await expect(service.listAvailable('r1', people as any)).rejects.toThrow(InvalidPeopleError)
+        })
+    })
+
+    describe('occupy', () => {
+        it('ocupa una mesa libre y la devuelve ocupada', async () => {
+            const created = await service.create('r1', validInput)
+
+            const occupied = await service.occupy('r1', created.id, 4)
+
+            expect(occupied).toMatchObject({ id: created.id, status: 'ocupada' })
+            expect((await repo.findById(created.id))?.status).toBe('ocupada')
+        })
+
+        it('lanza TableNotAvailableError si la mesa ya está ocupada o reservada', async () => {
+            const created = await service.create('r1', validInput)
+            await service.occupy('r1', created.id, 2)
+            await expect(service.occupy('r1', created.id, 2)).rejects.toThrow(TableNotAvailableError)
+
+            const reserved = await service.create('r1', { ...validInput, number: 21, status: 'reservada' })
+            await expect(service.occupy('r1', reserved.id, 2)).rejects.toThrow(TableNotAvailableError)
+        })
+
+        it('lanza TableCapacityExceededError si no caben y no ocupa la mesa', async () => {
+            const created = await service.create('r1', validInput)
+            await expect(service.occupy('r1', created.id, 5)).rejects.toThrow(TableCapacityExceededError)
+            await expect(service.occupy('r1', created.id, 5))
+                .rejects.toThrow('Table capacity (4) is lower than the number of people (5)')
+            expect((await repo.findById(created.id))?.status).toBe('libre')
+        })
+
+        it('da prioridad a TableCapacityExceededError sobre TableNotAvailableError', async () => {
+            const created = await service.create('r1', { ...validInput, status: 'ocupada' })
+            await expect(service.occupy('r1', created.id, 99)).rejects.toThrow(TableCapacityExceededError)
+        })
+
+        it('lanza TableNotFoundError si no existe o es de otro restaurante', async () => {
+            const created = await service.create('r1', validInput)
+            await expect(service.occupy('r1', 'no-existe', 2)).rejects.toThrow(TableNotFoundError)
+            await expect(service.occupy('r2', created.id, 2)).rejects.toThrow(TableNotFoundError)
+        })
+
+        it('valida people antes que la existencia de la mesa', async () => {
+            await expect(service.occupy('r1', 'no-existe', 0)).rejects.toThrow(InvalidPeopleError)
         })
     })
 })

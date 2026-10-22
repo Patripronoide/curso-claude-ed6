@@ -10,7 +10,10 @@ import {
     RestaurantNotFoundError,
     DuplicatedTableNumberError,
     TableNotFoundError,
-    TableHasOrdersError
+    TableHasOrdersError,
+    InvalidPeopleError,
+    TableCapacityExceededError,
+    TableNotAvailableError
 } from '@errors/DomainErrors.js'
 
 const MAX_NUMBER = 9999
@@ -101,6 +104,25 @@ export class TableService {
         return updated
     }
 
+    async listAvailable(restaurantId: string, people: number): Promise<Table[]> {
+        validatePeople(people)
+        return this.tableRepository.findAvailable(restaurantId, people)
+    }
+
+    // Orden del contrato: people → mesa del restaurante → capacidad → libre (atómico).
+    async occupy(restaurantId: string, id: string, people: number): Promise<Table> {
+        validatePeople(people)
+        const table = await this.findById(restaurantId, id)
+        if (people > table.capacity) {
+            throw new TableCapacityExceededError(table.capacity, people)
+        }
+        const occupied = await this.tableRepository.occupyIfFree(id, restaurantId)
+        if (!occupied) {
+            throw new TableNotAvailableError()
+        }
+        return this.findById(restaurantId, id)
+    }
+
     async findById(restaurantId: string, id: string): Promise<Table> {
         const table = await this.tableRepository.findById(id)
         if (!table || table.restaurantId !== restaurantId) {
@@ -138,6 +160,12 @@ export class TableService {
 
 function isIntegerInRange(value: unknown, min: number, max: number): value is number {
     return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max
+}
+
+function validatePeople(people: unknown): asserts people is number {
+    if (typeof people !== 'number' || !Number.isInteger(people) || people < 1) {
+        throw new InvalidPeopleError()
+    }
 }
 
 function normalizeDescription(value: unknown): string | null {
