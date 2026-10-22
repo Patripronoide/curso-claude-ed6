@@ -58,7 +58,7 @@ describe('POST /orders - mesas y formato de errores', () => {
     it('crea un pedido con una mesa ocupada (201)', async () => {
         const res = await postOrder({ restaurantId: R, tableId: 't-ocupada', items })
         expect(res.status).toBe(201)
-        expect(res.body).toMatchObject({ restaurantId: R, tableId: 't-ocupada', clientId: 'client-1' })
+        expect(res.body).toMatchObject({ restaurantId: R, tableId: 't-ocupada', tableNumber: 1, clientId: 'client-1' })
         expect(res.body.items).toHaveLength(2)
     })
 
@@ -66,6 +66,7 @@ describe('POST /orders - mesas y formato de errores', () => {
         const res = await postOrder({ restaurantId: R, tableId: null, items })
         expect(res.status).toBe(201)
         expect(res.body.tableId).toBeNull()
+        expect(res.body.tableNumber).toBeNull()
     })
 
     it('responde 400 TableNotOccupiedError con una mesa libre', async () => {
@@ -84,6 +85,19 @@ describe('POST /orders - mesas y formato de errores', () => {
         const res = await postOrder({ tableId: null, items })
         expect(res.status).toBe(400)
         expect(res.body).toEqual({ error: 'RestaurantIdRequiredError', message: 'Restaurant ID is required' })
+    })
+
+    it('GET /orders/active y /orders/mine incluyen tableNumber', async () => {
+        const active = await fetch(`${baseUrl}/api/v1/orders/active?restaurantId=${R}`, {
+            headers: { Authorization: `Bearer ${clientToken}` }
+        }).then(r => r.json())
+        const mine = await fetch(`${baseUrl}/api/v1/orders/mine`, {
+            headers: { Authorization: `Bearer ${clientToken}` }
+        }).then(r => r.json())
+        for (const orders of [active, mine]) {
+            const numbers = orders.map((o: { tableNumber: number | null }) => o.tableNumber).sort()
+            expect(numbers).toEqual([1, null])
+        }
     })
 
     it('responde 500 InternalServerError con excepciones no tipadas (items ausente)', async () => {

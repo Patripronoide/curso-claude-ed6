@@ -25,6 +25,7 @@ describe('OrderService.updateItemStatus', () => {
             id: 'order-1',
             restaurantId: 'rest-1',
             tableId: null,
+            tableNumber: null,
             clientId: null,
             createdAt: new Date(),
             items: [
@@ -94,6 +95,7 @@ describe('OrderService.create - validación de la mesa', () => {
     it('crea el pedido con una mesa ocupada del restaurante', async () => {
         const order = await service.create(request('t-ocupada'))
         expect(order.tableId).toBe('t-ocupada')
+        expect(order.tableNumber).toBe(5)
         expect(order.items).toHaveLength(2)
         expect(repo.orders).toHaveLength(1)
     })
@@ -101,6 +103,7 @@ describe('OrderService.create - validación de la mesa', () => {
     it('crea el pedido sin mesa', async () => {
         const order = await service.create(request(null))
         expect(order.tableId).toBeNull()
+        expect(order.tableNumber).toBeNull()
         expect(repo.orders).toHaveLength(1)
     })
 
