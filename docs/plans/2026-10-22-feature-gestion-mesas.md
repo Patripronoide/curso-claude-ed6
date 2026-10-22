@@ -4,7 +4,7 @@
 
 - **Tipo:** feature
 - **Fecha:** 2026-10-22
-- **Estado:** Pendiente
+- **Estado:** completado
 - **Issue:** [#5 Gestión de mesas](https://github.com/Patripronoide/curso-claude-ed6/issues/5)
 - **Tiempo estimado total:** 284 min (contrato 10 min · API 113 min · web-admin 44 min · web-empleados 49 min · web-clientes 43 min · integración y documentación 25 min)
 
