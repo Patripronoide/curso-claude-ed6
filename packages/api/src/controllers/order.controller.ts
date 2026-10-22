@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express'
 import type { OrderService } from '@services/order.service.js'
+import { AppError } from '@errors/AppError.js'
 
 export class OrderController {
     constructor(private readonly orderService: OrderService) {}
@@ -17,10 +18,12 @@ export class OrderController {
             })
             res.status(201).json(order)
         } catch (error) {
-            if (error instanceof Error) {
-                res.status(400).json({ error: error.message })
+            // Errores de dominio → 400 con el nombre de la clase (también TableNotFoundError,
+            // porque la mesa viaja en el cuerpo y no en la URL); cualquier otro → 500.
+            if (error instanceof AppError) {
+                res.status(400).json({ error: error.name, message: error.message })
             } else {
-                res.status(500).json({ error: 'Internal Server Error' })
+                res.status(500).json({ error: 'InternalServerError', message: 'Something went wrong' })
             }
         }
     }

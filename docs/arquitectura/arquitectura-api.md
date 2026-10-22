@@ -51,7 +51,7 @@ contexts/employee/
 
 `contexts/shared/` no es un bounded context de negocio: contiene el value object `Email` y los middlewares y el `errorHandler` de Express.
 
-### 2. Por capas → `restaurant`, `dish`, `ingredient`, `order`
+### 2. Por capas → `restaurant`, `dish`, `ingredient`, `order`, `table`
 
 El resto de dominios **no** usan bounded contexts. Se organizan en carpetas transversales por tipo de fichero:
 
@@ -66,7 +66,7 @@ src/
 
 Con un fichero por dominio en cada carpeta: `models/dish.model.ts`, `services/dish.service.ts`, `repositories/dish.repository.ts`, etc.
 
-**Diferencia clave**: aquí no hay entidades de dominio con comportamiento. `Restaurant`, `Dish`, `Ingredient` y `Order` son `interface` planas; la validación vive en los servicios y en funciones sueltas del modelo.
+**Diferencia clave**: aquí no hay entidades de dominio con comportamiento. `Restaurant`, `Dish`, `Ingredient`, `Order` y `Table` son `interface` planas; la validación vive en los servicios y en funciones sueltas del modelo.
 
 ---
 
@@ -310,6 +310,23 @@ Todos cuelgan de `/api/v1`. La columna **Roles** indica qué valores de `req.use
 
 Los ingredientes son **más restrictivos** que los platos: solo `admin` puede crear, editar o borrar.
 
+### Mesas
+
+Contrato completo en [`docs/api/mesas.openapi.yaml`](../api/mesas.openapi.yaml).
+
+| Método | Ruta | Roles |
+| --- | --- | --- |
+| `POST` | `/api/v1/restaurants/:restaurantId/tables` | admin |
+| `GET` | `/api/v1/restaurants/:restaurantId/tables` | admin, manager, camarero, cocinero — `?status=` opcional |
+| `GET` | `/api/v1/restaurants/:restaurantId/tables/:id` | admin, manager, camarero, cocinero |
+| `PUT` | `/api/v1/restaurants/:restaurantId/tables/:id` | admin |
+| `DELETE` | `/api/v1/restaurants/:restaurantId/tables/:id` | admin — 409 si tiene pedidos |
+| `PATCH` | `/api/v1/restaurants/:restaurantId/tables/:id/status` | admin, manager, camarero |
+| `POST` | `/api/v1/restaurants/:restaurantId/tables/:id/occupy` | cliente — body `{ people }`, ocupación atómica |
+| `GET` | `/api/v1/public/restaurants/:restaurantId/tables/available?people=N` | público — mesas `libre` con capacidad ≥ N, ordenadas por capacidad y número |
+
+Límites: `number` 1-9999, `capacity` 1-1000, `description` ≤ 255. `POST /orders` valida `tableId` (la mesa debe ser del restaurante del pedido y estar `ocupada`) y los pedidos devuelven `tableNumber`.
+
 ### Pedidos
 
 | Método | Ruta | Roles |
@@ -345,7 +362,8 @@ Ambos responden directamente, sin pasar por el `errorHandler`.
 
 Jerarquía: `Error` → `AppError` (abstracta) → errores específicos en `errors/DomainErrors.ts`. `AppError` asigna `this.name = this.constructor.name`, y el `errorHandler` decide el código HTTP a partir de ese nombre:
 
-- **404**: `EmployeeNotFoundError`, `RestaurantNotFoundError`, `IngredientNotFoundError`, `DishNotFoundError`
+- **404**: `EmployeeNotFoundError`, `RestaurantNotFoundError`, `IngredientNotFoundError`, `DishNotFoundError`, `TableNotFoundError`
+- **409** (lista `CONFLICT_ERRORS`): `DuplicatedTableNumberError`, `TableNotAvailableError`, `TableCapacityExceededError`, `TableHasOrdersError`
 - **401**: `InvalidCredentialsError`
 - **400**: cualquier otro `AppError`
 - **500**: errores no controlados
@@ -353,7 +371,7 @@ Jerarquía: `Error` → `AppError` (abstracta) → errores específicos en `erro
 Dos excepciones que conviene conocer:
 
 - `OrderNotFoundError` **no** está en la lista de 404. Si llegase al `errorHandler` se traduciría a 400.
-- `OrderController` no delega en el `errorHandler`: es el único controlador que **no llama a `next(error)`**, sino que hace su propio `try/catch` y construye la respuesta a mano. Por eso `GET /orders/:id` sí devuelve 404, pero el `PATCH` de estado devuelve 400 para el mismo error.
+- `OrderController` no delega en el `errorHandler`: es el único controlador que **no llama a `next(error)`**, sino que hace su propio `try/catch` y construye la respuesta a mano. Por eso `GET /orders/:id` sí devuelve 404, pero el `PATCH` de estado devuelve 400 para el mismo error. `POST /orders` responde 400 con `{ error: <nombre de la clase>, message }` para los `AppError` (p. ej. `TableNotOccupiedError`) y 500 `InternalServerError` para el resto; el resto de métodos conservan el formato antiguo `{ error: <mensaje> }`.
 
 ---
 
@@ -400,6 +418,7 @@ La ruta del fichero se decide en el constructor: `:memory:` si `NODE_ENV=test`, 
 Con **Vitest** (`npm test` desde la raíz, o `npm run test:watch` dentro de `packages/api`). Los tests son unitarios y conviven con el código que prueban:
 
 - Dominio y casos de uso de `employee`, con dobles en `contexts/employee/application/mocks/`
-- Servicios y repositorios de `restaurant`, `ingredient` y `order`, con dobles en `repositories/mocks/`
+- Servicios y repositorios de `restaurant`, `ingredient`, `order` y `table`, con dobles en `repositories/mocks/`
+- Tests de integración HTTP **solo para mesas y pedidos** (`routes/table.http.test.ts`, `routes/order.http.test.ts`): levantan `app` con `app.listen(0)` y llaman con `fetch`, sin `supertest`.
 
-**No hay tests de integración HTTP.** `supertest` figura como dependencia de desarrollo pero no se usa en ningún test, así que las rutas, los middlewares y el `errorHandler` no están cubiertos.
+El resto de rutas no tiene tests HTTP. `supertest` sigue como dependencia de desarrollo sin usarse.

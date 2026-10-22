@@ -9,6 +9,43 @@ const seed = async () => {
         await dbConfig.initialize()
         console.log('Database initialized.')
 
+        await dbConfig.run(`
+            INSERT OR IGNORE INTO restaurants (id, name, address, email, phone, owner_first_name, owner_last_name, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, ['rest-1', 'Restaurante El Gourmet', 'Calle Mayor 10, Madrid', 'info@gourmet.com', '912345678', 'Carlos', 'García', new Date().toISOString(), new Date().toISOString()])
+
+        await dbConfig.run(`
+            INSERT OR IGNORE INTO restaurants (id, name, address, email, phone, owner_first_name, owner_last_name, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, ['rest-2', 'Pizzería Napoli', 'Avenida del Sol 25, Barcelona', 'info@napoli.com', '934567890', 'Marco', 'Rossi', new Date().toISOString(), new Date().toISOString()])
+
+        console.log('Restaurants created.')
+
+        // Mesas de ejemplo con ids fijos: INSERT OR IGNORE las hace idempotentes
+        // (también las protege UNIQUE(restaurant_id, number)).
+        const tables = [
+            { id: '7c1d2e3f-0000-4000-8000-000000000101', restaurantId: 'rest-1', number: 1, description: 'Ventana', capacity: 2, status: 'libre' },
+            { id: '7c1d2e3f-0000-4000-8000-000000000102', restaurantId: 'rest-1', number: 2, description: null, capacity: 4, status: 'libre' },
+            { id: '7c1d2e3f-0000-4000-8000-000000000103', restaurantId: 'rest-1', number: 3, description: 'Terraza', capacity: 4, status: 'libre' },
+            { id: '7c1d2e3f-0000-4000-8000-000000000104', restaurantId: 'rest-1', number: 4, description: 'Salón', capacity: 6, status: 'libre' },
+            { id: '7c1d2e3f-0000-4000-8000-000000000105', restaurantId: 'rest-1', number: 5, description: 'Junto a la barra', capacity: 4, status: 'ocupada' },
+            { id: '7c1d2e3f-0000-4000-8000-000000000106', restaurantId: 'rest-1', number: 6, description: 'Reservado grupos', capacity: 10, status: 'reservada' },
+            { id: '7c1d2e3f-0000-4000-8000-000000000201', restaurantId: 'rest-2', number: 1, description: 'Ventana', capacity: 2, status: 'libre' },
+            { id: '7c1d2e3f-0000-4000-8000-000000000202', restaurantId: 'rest-2', number: 2, description: null, capacity: 4, status: 'libre' },
+            { id: '7c1d2e3f-0000-4000-8000-000000000203', restaurantId: 'rest-2', number: 3, description: 'Terraza', capacity: 6, status: 'ocupada' },
+            { id: '7c1d2e3f-0000-4000-8000-000000000204', restaurantId: 'rest-2', number: 4, description: null, capacity: 8, status: 'reservada' },
+        ]
+        for (const table of tables) {
+            await dbConfig.run(`
+                INSERT OR IGNORE INTO restaurant_tables (id, restaurant_id, number, description, capacity, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `, [table.id, table.restaurantId, table.number, table.description, table.capacity, table.status, new Date().toISOString(), new Date().toISOString()])
+        }
+        // El pedido de ejemplo se liga a la mesa 5 de rest-1, que está ocupada.
+        const seedOrderTableId = '7c1d2e3f-0000-4000-8000-000000000105'
+
+        console.log('Tables created.')
+
         const authService = new BcryptAuthService()
         const employeeRepo = new SqliteEmployeeRepository(dbConfig)
 
@@ -59,17 +96,6 @@ const seed = async () => {
             }
         }
 
-        await dbConfig.run(`
-            INSERT OR IGNORE INTO restaurants (id, name, address, email, phone, owner_first_name, owner_last_name, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, ['rest-1', 'Restaurante El Gourmet', 'Calle Mayor 10, Madrid', 'info@gourmet.com', '912345678', 'Carlos', 'García', new Date().toISOString(), new Date().toISOString()])
-
-        await dbConfig.run(`
-            INSERT OR IGNORE INTO restaurants (id, name, address, email, phone, owner_first_name, owner_last_name, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, ['rest-2', 'Pizzería Napoli', 'Avenida del Sol 25, Barcelona', 'info@napoli.com', '934567890', 'Marco', 'Rossi', new Date().toISOString(), new Date().toISOString()])
-
-        console.log('Restaurants created.')
 
         const ingredientsRest1 = [
             { id: randomUUID(), name: 'Tomate', unit: 'kg' },
@@ -162,7 +188,7 @@ const seed = async () => {
         await dbConfig.run(`
             INSERT OR IGNORE INTO orders (id, restaurant_id, table_id, client_id, created_at)
             VALUES (?, ?, ?, ?, ?)
-        `, [order1Id, 'rest-1', '5', null, new Date().toISOString()])
+        `, [order1Id, 'rest-1', seedOrderTableId, null, new Date().toISOString()])
 
         for (let i = 0; i < 2; i++) {
             await dbConfig.run(`
