@@ -165,7 +165,7 @@ Etiquetas: `[API]` agente de back, `[ADMIN]`, `[EMP]` y `[CLI]` agentes de cada 
 - [x] **T21** `[EMP]` `store/table.store.ts` con polling cada 30 s (`startPolling`/`stopPolling`, como `OrderStore`) y `changeStatus` que actualiza la señal. Compila. (~10 min)
 - [x] **T22** `[EMP]` Añadir `tableNumber` a `order.model.ts` y un computed `ordersByTable` en `OrderStore` que agrupa los pedidos activos por `tableId`. Compila. (~8 min)
 - [x] **T23** `[EMP]` `salon.component`: rejilla de mesas con su estado, selector de estado para `camarero` y `manager` (el `cocinero` solo lo ve) y, en las `ocupada`, los pedidos de la mesa con el estado de cada ítem. Compila. (~15 min)
-- [ ] **T24** `[EMP]` Ajustar `shell.component` para que `camarero` y `manager` accedan a Salón con las mesas y que la página arranque el polling de mesas y de pedidos y lo detenga al salir. Compila y se comprueba a mano con distintos roles. (~8 min)
+- [x] **T24** `[EMP]` Ajustar `shell.component` para que `camarero` y `manager` accedan a Salón con las mesas y que la página arranque el polling de mesas y de pedidos y lo detenga al salir. Compila y se comprueba a mano con distintos roles. (~8 min)
 
 ### web-clientes (`packages/web-clientes`, rama `feat/5-gestion-mesas-web-clientes`)
 

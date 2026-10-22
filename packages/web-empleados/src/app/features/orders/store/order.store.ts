@@ -68,6 +68,7 @@ export class OrderStore {
   }
 
   startPolling(restaurantId: string): void {
+    this.stopPolling();
     this.loadOrders(restaurantId);
     this.pollingInterval = setInterval(() => {
       this.loadOrders(restaurantId);
