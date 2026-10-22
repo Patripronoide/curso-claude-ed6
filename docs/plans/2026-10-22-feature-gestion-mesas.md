@@ -137,7 +137,7 @@ Etiquetas: `[API]` agente de back, `[ADMIN]`, `[EMP]` y `[CLI]` agentes de cada 
 
 ### API (`packages/api`, rama `feat/5-gestion-mesas-api`)
 
-- [ ] **T2** `[API]` Modelo en `models/table.model.ts`: interfaz `Table`, estados y `normalizeTableStatus()`; errores de mesa en `DomainErrors.ts`. Test de `normalizeTableStatus` (válidos, mayúsculas, inválido → `InvalidTableStatusError`). (~8 min)
+- [x] **T2** `[API]` Modelo en `models/table.model.ts`: interfaz `Table`, estados y `normalizeTableStatus()`; errores de mesa en `DomainErrors.ts`. Test de `normalizeTableStatus` (válidos, mayúsculas, inválido → `InvalidTableStatusError`). (~8 min)
 - [ ] **T3** `[API]` `errorHandler.ts`: añadir `TableNotFoundError` a `NOT_FOUND_ERRORS` y lista `CONFLICT_ERRORS` (`DuplicatedTableNumberError`, `TableNotAvailableError`, `TableCapacityExceededError`, `TableHasOrdersError`) → 409. Test del handler con un error de cada tipo (404, 409, 400). (~5 min)
 - [ ] **T4** `[API]` Migración de `restaurant_tables` en `config/database.ts` con `UNIQUE(restaurant_id, number)`. Test: la tabla existe y rechaza un número duplicado en el mismo restaurante pero admite el mismo número en otro. (~6 min)
 - [ ] **T5** `[API]` `repositories/table.repository.ts`: interfaz `TableRepository` y `SqliteTableRepository` con `findById`, `findByRestaurantId(restaurantId, status?)`, `save` y `delete`. Tests con SQLite en memoria, como `ingredient.repository.test.ts`. (~10 min)
