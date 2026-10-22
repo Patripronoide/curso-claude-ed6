@@ -19,21 +19,38 @@ info:
       los roles permitidos; cualquier otro rol recibe 403.
     - La API **no** comprueba que el empleado pertenezca al `restaurantId` de la URL
       (mismo criterio que el resto de recursos).
+    - **Restaurante del empleado:** el objeto `user` que devuelve `POST /auth/login`
+      (`{ token, user: { id, email, firstName, lastName, role, restaurantId } }`) incluye
+      `restaurantId` (`string | null`; `null` en `admin` y `cliente`). Los empleados lo usan
+      como `{restaurantId}` en `/restaurants/{restaurantId}/tables` y en
+      `GET /orders/active?restaurantId=`.
 
     ## Formato de errores
 
-    - Errores de dominio (400, 404, 409): `Error` = `{ "error": "<NombreDeClase>", "message": "<texto>" }`.
-      **Los frontends deben decidir por el campo `error`**, nunca por `message` (el texto es
-      informativo, en inglés, y puede cambiar).
-    - Errores de autenticación/autorización (401, 403), generados por los middlewares
-      `authenticate`/`authorize`: `AuthError` = `{ "error": "<texto>" }`, **sin** `message`.
+    - **401 y 403** (middlewares `authenticate`/`authorize`): se distinguen **solo por el
+      código HTTP**. Su cuerpo es `AuthError` = `{ "error": "<texto libre>" }`: el campo
+      `error` **no** es un nombre de clase y **no** llevan `message`.
+    - **Resto de errores** (400, 404, 409 y 500 de este contrato): `Error` =
+      `{ "error": "<NombreDeClase>", "message": "<texto>" }`. **El frontend decide por el
+      campo `error`, nunca por `message`** (el texto es informativo, en inglés, y puede
+      cambiar).
     - Error inesperado (500): `{ "error": "InternalServerError", "message": "Something went wrong" }`.
+    - Excepción heredada: `GET /orders/active`, `GET /orders/mine` y `GET /orders/{id}`
+      mantienen el formato `LegacyError` (`{ "error": "<texto>" }`); no cambian en esta issue.
 
     | `error` | HTTP |
     | ------- | ---- |
-    | `TableNotFoundError`, `RestaurantNotFoundError` | 404 |
-    | `DuplicatedTableNumberError`, `TableNotAvailableError`, `TableHasOrdersError` | 409 |
-    | `TableNumberInvalidError`, `InvalidCapacityError`, `InvalidTableStatusError`, `InvalidPeopleError`, `TableNotOccupiedError` | 400 |
+    | `TableNotFoundError`, `RestaurantNotFoundError` | 404 (en `POST /orders`, 400) |
+    | `DuplicatedTableNumberError`, `TableNotAvailableError`, `TableCapacityExceededError`, `TableHasOrdersError` | 409 |
+    | `TableNumberInvalidError`, `InvalidCapacityError`, `TableDescriptionTooLongError`, `InvalidTableStatusError`, `InvalidPeopleError`, `TableNotOccupiedError`, `RestaurantIdRequiredError` | 400 |
+
+    ## Límites de los campos de una mesa (los valida la API)
+
+    | Campo | Regla | Error si no se cumple |
+    | ----- | ----- | --------------------- |
+    | `number` | entero, 1 ≤ `number` ≤ 9999 | 400 `TableNumberInvalidError` |
+    | `capacity` | entero, 1 ≤ `capacity` ≤ 1000 | 400 `InvalidCapacityError` |
+    | `description` | cadena de como máximo 255 caracteres (tras `trim`) | 400 `TableDescriptionTooLongError` (error nuevo) |
 
     ## Estados de una mesa
 
@@ -70,8 +87,9 @@ paths:
 
         Crea una mesa en el restaurante. `status` es opcional (por defecto `libre`).
         `description` vacía o solo con espacios se guarda como `null`.
-        Validaciones en este orden: `number` (entero ≥ 1), `capacity` (entero ≥ 1),
-        `status` (si viene), restaurante existente y número no repetido en el restaurante.
+        Validaciones en este orden: `number` (entero 1-9999), `capacity` (entero 1-1000),
+        `description` (≤ 255), `status` (si viene), restaurante existente y número no
+        repetido en el restaurante.
       requestBody:
         required: true
         content:
@@ -106,6 +124,8 @@ paths:
                   $ref: '#/components/examples/TableNumberInvalidError'
                 InvalidCapacityError:
                   $ref: '#/components/examples/InvalidCapacityError'
+                TableDescriptionTooLongError:
+                  $ref: '#/components/examples/TableDescriptionTooLongError'
                 InvalidTableStatusError:
                   $ref: '#/components/examples/InvalidTableStatusError'
         '401':
@@ -257,6 +277,8 @@ paths:
                   $ref: '#/components/examples/TableNumberInvalidError'
                 InvalidCapacityError:
                   $ref: '#/components/examples/InvalidCapacityError'
+                TableDescriptionTooLongError:
+                  $ref: '#/components/examples/TableDescriptionTooLongError'
                 InvalidTableStatusError:
                   $ref: '#/components/examples/InvalidTableStatusError'
         '401':
@@ -423,9 +445,12 @@ paths:
         Pasa la mesa de `libre` a `ocupada` de forma **atómica**
         (`UPDATE ... WHERE status = 'libre'`): si dos clientes la piden a la vez, uno
         recibe 200 y el otro 409 `TableNotAvailableError`. Orden de comprobación:
-        `people` (400) → mesa existe en el restaurante (404) → `people <= capacity` y
-        estado `libre` (409). Una mesa `ocupada` o `reservada` responde 409.
-        Tras un 409 el cliente debe recargar `GET /public/restaurants/{restaurantId}/tables/available`.
+        `people` (400 `InvalidPeopleError`) → mesa existe en el restaurante (404
+        `TableNotFoundError`) → `people <= capacity` (409 `TableCapacityExceededError`) →
+        estado `libre` (409 `TableNotAvailableError`; una mesa `ocupada` o `reservada`).
+        Si se cumplen ambas condiciones de 409, gana `TableCapacityExceededError`.
+        Tras un 409 el cliente debe recargar `GET /public/restaurants/{restaurantId}/tables/available`
+        (con `TableCapacityExceededError`, además, elegir una mesa más grande).
       requestBody:
         required: true
         content:
@@ -461,22 +486,18 @@ paths:
         '404':
           $ref: '#/components/responses/TableNotFound'
         '409':
-          description: La mesa no está libre o no caben las personas indicadas
+          description: |
+            `TableCapacityExceededError` si `people > capacity` (elegir otra mesa);
+            `TableNotAvailableError` si la mesa no está `libre` (recargar disponibles).
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               examples:
-                noLibre:
-                  summary: Ya ocupada o reservada
-                  value:
-                    error: TableNotAvailableError
-                    message: Table is not available
-                noCabe:
-                  summary: Capacidad insuficiente
-                  value:
-                    error: TableNotAvailableError
-                    message: 'Table capacity (4) is lower than the number of people (6)'
+                TableNotAvailableError:
+                  $ref: '#/components/examples/TableNotAvailableError'
+                TableCapacityExceededError:
+                  $ref: '#/components/examples/TableCapacityExceededError'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -498,10 +519,23 @@ paths:
         `tableId: null` o ausente sigue siendo válido (pedido sin mesa). Cada ítem con
         `quantity: N` se expande a N ítems con `quantity: 1`.
 
-        **Cambio en el formato de error:** este endpoint gestiona sus errores con su propio
-        `try/catch` y hasta ahora respondía `{ "error": "<mensaje>" }`. Pasa a responder
-        `Error` (`{ error: <NombreDeClase>, message }`) para los errores de dominio, siempre
-        con **400** (también `TableNotFoundError`, porque la mesa viaja en el cuerpo).
+        **Cambio en el formato de error (refactor del `catch` de `createOrder` en T12):**
+        hasta ahora respondía `{ "error": "<mensaje>" }` con 400 para cualquier excepción.
+        Pasa a:
+
+        - cualquier `AppError` → **400** con `Error` (`{ error: <NombreDeClase>, message }`),
+          también `TableNotFoundError` (la mesa viaja en el cuerpo, no en la URL). Ningún 400
+          de este endpoint usa ya el formato heredado. Nombres posibles:
+          `RestaurantIdRequiredError` (`restaurantId` ausente o vacío),
+          `TableNotFoundError` y `TableNotOccupiedError`.
+        - cualquier otra excepción → **500** `{ "error": "InternalServerError", "message": "Something went wrong" }`.
+          Hoy (sin tipar) caen aquí: `items` ausente o que no es un array (`TypeError`),
+          `restaurantId` o `dishId` que no existen (violación de clave foránea de SQLite).
+          El frontend solo debe enviar platos de la carta del restaurante, así que no son
+          casos esperables en uso normal.
+      x-nota-implementacion: |
+        El servicio no valida `items` ni la existencia de restaurante/platos y la inserción
+        no es transaccional; tiparlo queda fuera de la issue #5.
       requestBody:
         required: true
         content:
@@ -549,7 +583,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/CreateOrderError'
               examples:
                 TableNotFoundError:
                   value:
@@ -565,6 +599,8 @@ paths:
                     message: Restaurant ID is required
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /orders/active:
     get:
@@ -577,7 +613,12 @@ paths:
         Pedidos con al menos un ítem no `entregado`, ordenados por `createdAt` ascendente.
         **Cambio de la issue #5:** cada pedido incluye `tableNumber` (número de la mesa, o
         `null` si `tableId` es `null` o no corresponde a ninguna mesa). Este endpoint no
-        incluye `restaurantName` ni `restaurantLogoUrl`. Para agrupar por mesa se usa `tableId`.
+        incluye `restaurantName` ni `restaurantLogoUrl`. Para agrupar por mesa se usa
+        `tableId === Table.id`.
+
+        Como solo devuelve pedidos con algún ítem no `entregado`, una mesa `ocupada` sin
+        pedidos activos es un caso válido (su lista de pedidos queda vacía), igual que un
+        pedido con `tableNumber: null` (sin mesa o legacy).
 
         Sin cambios en errores (formato heredado `{ error: <texto> }`).
       parameters:
@@ -768,16 +809,19 @@ components:
         number:
           type: integer
           minimum: 1
+          maximum: 9999
           description: Número visible de la mesa, único dentro del restaurante
           example: 20
         description:
           type: string
           nullable: true
+          maxLength: 255
           description: Texto libre (zona, ubicación...). `null` si no tiene.
           example: Terraza
         capacity:
           type: integer
           minimum: 1
+          maximum: 1000
           description: Número máximo de comensales
           example: 4
         status:
@@ -799,17 +843,20 @@ components:
         number:
           type: integer
           minimum: 1
-          description: Entero ≥ 1. Si no lo es (o falta) → 400 `TableNumberInvalidError`.
+          maximum: 9999
+          description: Entero entre 1 y 9999. Si no lo es (o falta) → 400 `TableNumberInvalidError`.
           example: 20
         description:
           type: string
           nullable: true
-          description: Opcional. Vacía o solo espacios se guarda como `null`.
+          maxLength: 255
+          description: Opcional. Vacía o solo espacios se guarda como `null`. Máximo 255 caracteres tras `trim` (si no → 400 `TableDescriptionTooLongError`).
           example: Terraza
         capacity:
           type: integer
           minimum: 1
-          description: Entero ≥ 1. Si no lo es (o falta) → 400 `InvalidCapacityError`.
+          maximum: 1000
+          description: Entero entre 1 y 1000. Si no lo es (o falta) → 400 `InvalidCapacityError`.
           example: 4
         status:
           $ref: '#/components/schemas/TableStatus'
@@ -821,17 +868,20 @@ components:
         number:
           type: integer
           minimum: 1
-          description: Entero ≥ 1 (si no → 400 `TableNumberInvalidError`).
+          maximum: 9999
+          description: Entero entre 1 y 9999 (si no → 400 `TableNumberInvalidError`).
           example: 20
         description:
           type: string
           nullable: true
-          description: Opcional. Ausente, `null` o vacía → `null`.
+          maxLength: 255
+          description: Opcional. Ausente, `null` o vacía → `null`. Máximo 255 caracteres tras `trim` (si no → 400 `TableDescriptionTooLongError`).
           example: Terraza
         capacity:
           type: integer
           minimum: 1
-          description: Entero ≥ 1 (si no → 400 `InvalidCapacityError`).
+          maximum: 1000
+          description: Entero entre 1 y 1000 (si no → 400 `InvalidCapacityError`).
           example: 6
         status:
           allOf:
@@ -852,7 +902,7 @@ components:
         people:
           type: integer
           minimum: 1
-          description: Comensales. Entero ≥ 1 (si no → 400 `InvalidPeopleError`); si supera `capacity` → 409 `TableNotAvailableError`.
+          description: Comensales. Entero ≥ 1 (si no → 400 `InvalidPeopleError`); si supera `capacity` → 409 `TableCapacityExceededError`.
           example: 3
 
     Error:
@@ -868,8 +918,10 @@ components:
             - RestaurantNotFoundError
             - DuplicatedTableNumberError
             - TableNotAvailableError
+            - TableCapacityExceededError
             - TableHasOrdersError
             - TableNumberInvalidError
+            - TableDescriptionTooLongError
             - InvalidCapacityError
             - InvalidTableStatusError
             - InvalidPeopleError
@@ -882,13 +934,36 @@ components:
           description: Texto informativo (en inglés); no usar para lógica.
           example: Table number 20 already exists in this restaurant
 
+    CreateOrderError:
+      type: object
+      description: |
+        Errores 400 de `POST /orders` (tras el refactor del `catch` de `createOrder` en T12).
+        Mismo formato que `Error`, restringido a los nombres que puede devolver este endpoint
+        con 400. Cualquier otro fallo es 500 `InternalServerError` (esquema `Error`).
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          enum:
+            - RestaurantIdRequiredError
+            - TableNotFoundError
+            - TableNotOccupiedError
+          example: TableNotOccupiedError
+        message:
+          type: string
+          description: Texto informativo (en inglés); no usar para lógica.
+          example: Table is not occupied
+
     AuthError:
       type: object
-      description: Respuesta de los middlewares `authenticate` (401) y `authorize` (403). Sin `message`.
+      description: |
+        Respuesta de los middlewares `authenticate` (401) y `authorize` (403). Se distinguen
+        por el código HTTP: `error` es texto libre (no un nombre de clase) y no hay `message`.
       required: [error]
       properties:
         error:
           type: string
+          description: Texto libre; no usar para lógica.
           example: 'Forbidden: Insufficient permissions'
 
     LegacyError:
@@ -944,7 +1019,11 @@ components:
         tableId:
           type: string
           nullable: true
-          description: Id de la mesa (`Table.id`) o `null`. Pedidos antiguos pueden tener valores que no son de ninguna mesa.
+          description: |
+            Id de la mesa (`Table.id`) o `null`. **Los frontends asocian pedidos a mesas solo
+            por `order.tableId === table.id`** (nunca por `tableNumber`). Un pedido antiguo
+            (legacy) puede traer un `tableId` que no es de ninguna mesa (p. ej. `'5'`): llega
+            con `tableNumber: null` y se trata como pedido **sin mesa**.
         tableNumber:
           type: integer
           nullable: true
@@ -952,6 +1031,7 @@ components:
             **Nuevo.** `Table.number` de la mesa del pedido (`LEFT JOIN restaurant_tables`);
             `null` si no hay mesa o `tableId` no corresponde a ninguna. Presente en
             `POST /orders`, `GET /orders/active`, `GET /orders/mine` y `GET /orders/{id}`.
+            Es solo para mostrar; para asociar pedido y mesa se usa `tableId`.
           example: 20
         clientId:
           type: string
@@ -1088,10 +1168,18 @@ components:
     TableHasOrdersError:
       value: { error: TableHasOrdersError, message: Table has associated orders and cannot be deleted }
     TableNumberInvalidError:
-      value: { error: TableNumberInvalidError, message: Table number must be an integer greater than or equal to 1 }
+      value: { error: TableNumberInvalidError, message: Table number must be an integer between 1 and 9999 }
     InvalidCapacityError:
-      value: { error: InvalidCapacityError, message: Capacity must be an integer greater than or equal to 1 }
+      value: { error: InvalidCapacityError, message: Capacity must be an integer between 1 and 1000 }
     InvalidTableStatusError:
       value: { error: InvalidTableStatusError, message: 'Invalid table status: rota. Must be one of: libre, ocupada, reservada' }
+    TableNotAvailableError:
+      summary: Mesa ya ocupada o reservada
+      value: { error: TableNotAvailableError, message: Table is not available }
+    TableCapacityExceededError:
+      summary: Más personas que la capacidad de la mesa
+      value: { error: TableCapacityExceededError, message: 'Table capacity (4) is lower than the number of people (6)' }
+    TableDescriptionTooLongError:
+      value: { error: TableDescriptionTooLongError, message: Table description must be at most 255 characters }
     InvalidPeopleError:
       value: { error: InvalidPeopleError, message: People must be an integer greater than or equal to 1 }

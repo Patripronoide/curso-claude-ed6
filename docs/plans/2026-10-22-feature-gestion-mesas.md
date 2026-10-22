@@ -82,11 +82,11 @@ Esquema `Table`: `{ id, restaurantId, number, description (string|null), capacit
 | `DELETE /restaurants/{restaurantId}/tables/{id}` | admin | | 204; 404; 409 si tiene pedidos asociados |
 | `PATCH /restaurants/{restaurantId}/tables/{id}/status` | admin, manager, camarero | `{ status }` | 200 `Table`; 400 estado inválido; 404 |
 | `GET /public/restaurants/{restaurantId}/tables/available` | público | `?people=N` (entero ≥ 1, obligatorio) | 200 `Table[]` libres con `capacity ≥ N`, ordenadas por `capacity` y `number`; 400 si `people` no es válido |
-| `POST /restaurants/{restaurantId}/tables/{id}/occupy` | cliente | `{ people }` | 200 `Table` (ya `ocupada`); 400; 404; 409 si no está libre o no cabe |
+| `POST /restaurants/{restaurantId}/tables/{id}/occupy` | cliente | `{ people }` | 200 `Table` (ya `ocupada`); 400; 404; 409 `TableNotAvailableError` si no está libre, 409 `TableCapacityExceededError` si no cabe |
 
 Cambios en pedidos: `POST /orders` valida que `tableId`, si viene, sea una mesa del restaurante del pedido y esté `ocupada` (400 si no). `Order` incorpora `tableNumber` (integer|null), calculado con un `LEFT JOIN`, en `GET /orders/active`, `/orders/mine` y `/orders/{id}`.
 
-Errores (JSON `{ error, message }`): `TableNotFoundError` → 404; `DuplicatedTableNumberError`, `TableNotAvailableError`, `TableHasOrdersError` → 409 (se añade lista `CONFLICT_ERRORS` al `errorHandler`); el resto (`TableNumberInvalidError`, `InvalidCapacityError`, `InvalidTableStatusError`, `InvalidPeopleError`, `TableNotOccupiedError`) → 400.
+Errores (JSON `{ error, message }`): `TableNotFoundError` → 404; `DuplicatedTableNumberError`, `TableNotAvailableError`, `TableCapacityExceededError`, `TableHasOrdersError` → 409 (se añade lista `CONFLICT_ERRORS` al `errorHandler`); el resto (`TableNumberInvalidError`, `InvalidCapacityError`, `InvalidTableStatusError`, `InvalidPeopleError`, `TableNotOccupiedError`, `TableDescriptionTooLongError`) → 400.
 
 La ocupación es **atómica**: `UPDATE restaurant_tables SET status='ocupada' WHERE id=? AND restaurant_id=? AND status='libre'`; si no cambia ninguna fila, 409. Así dos clientes no pueden coger la misma mesa.
 
@@ -138,13 +138,13 @@ Etiquetas: `[API]` agente de back, `[ADMIN]`, `[EMP]` y `[CLI]` agentes de cada 
 ### API (`packages/api`, rama `feat/5-gestion-mesas-api`)
 
 - [ ] **T2** `[API]` Modelo en `models/table.model.ts`: interfaz `Table`, estados y `normalizeTableStatus()`; errores de mesa en `DomainErrors.ts`. Test de `normalizeTableStatus` (válidos, mayúsculas, inválido → `InvalidTableStatusError`). (~8 min)
-- [ ] **T3** `[API]` `errorHandler.ts`: añadir `TableNotFoundError` a `NOT_FOUND_ERRORS` y lista `CONFLICT_ERRORS` → 409. Test del handler con un error de cada tipo (404, 409, 400). (~5 min)
+- [ ] **T3** `[API]` `errorHandler.ts`: añadir `TableNotFoundError` a `NOT_FOUND_ERRORS` y lista `CONFLICT_ERRORS` (`DuplicatedTableNumberError`, `TableNotAvailableError`, `TableCapacityExceededError`, `TableHasOrdersError`) → 409. Test del handler con un error de cada tipo (404, 409, 400). (~5 min)
 - [ ] **T4** `[API]` Migración de `restaurant_tables` en `config/database.ts` con `UNIQUE(restaurant_id, number)`. Test: la tabla existe y rechaza un número duplicado en el mismo restaurante pero admite el mismo número en otro. (~6 min)
 - [ ] **T5** `[API]` `repositories/table.repository.ts`: interfaz `TableRepository` y `SqliteTableRepository` con `findById`, `findByRestaurantId(restaurantId, status?)`, `save` y `delete`. Tests con SQLite en memoria, como `ingredient.repository.test.ts`. (~10 min)
 - [ ] **T6** `[API]` Repositorio: `findAvailable(restaurantId, people)`, `occupyIfFree(id, restaurantId)` atómico y `hasOrders(id)`. Tests: filtra por capacidad y `libre`, orden por capacidad y número, doble ocupación devuelve `false` la segunda vez, `hasOrders` con y sin pedidos. (~10 min)
 - [ ] **T7** `[API]` `repositories/mocks/MockTableRepository.ts` y `services/table.service.ts` con `create`, `update`, `findById`, `findByRestaurantId`. Validaciones: número entero ≥ 1, capacidad entero ≥ 1, número duplicado → `DuplicatedTableNumberError`, estado por defecto `libre`. Tests con el mock. (~10 min)
 - [ ] **T8** `[API]` Servicio: `delete` (404 si no existe, `TableHasOrdersError` si tiene pedidos) y `changeStatus`. Tests de ambos casos de error y del camino feliz. (~8 min)
-- [ ] **T9** `[API]` Servicio: `listAvailable(restaurantId, people)` (`InvalidPeopleError` si no es entero ≥ 1) y `occupy(restaurantId, id, people)` (404; `TableNotAvailableError` si no está libre o `people > capacity`). Tests de los casos. (~10 min)
+- [ ] **T9** `[API]` Servicio: `listAvailable(restaurantId, people)` (`InvalidPeopleError` si no es entero ≥ 1) y `occupy(restaurantId, id, people)` (404; `TableNotAvailableError` si no está libre; `TableCapacityExceededError` si `people > capacity`). Tests de los casos. (~10 min)
 - [ ] **T10** `[API]` `controllers/table.controller.ts` (`next(error)`, como `IngredientController`) y `routes/table.routes.ts` con los roles de 4.2, más `routes/table.public.routes.ts` (`GET /available`); montaje en `app.ts`, con la ruta `/available` registrada antes que `/:id`. Se comprueba que `npm run build -w @resttek/api` compila. (~10 min)
 - [ ] **T11** `[API]` Pruebas de integración HTTP de mesas (`app.listen(0)` + `fetch`, sin dependencias nuevas) para los casos del plan de verificación (sección 7): CRUD admin, 401/403, 409 de duplicado, 409 al ocupar una mesa ya ocupada, `available` y `PATCH status`. (~10 min)
 - [ ] **T12** `[API]` `OrderService.create`: si hay `tableId`, la mesa debe existir en el restaurante del pedido y estar `ocupada` (si no, `TableNotFoundError` / `TableNotOccupiedError`). Inyectar `TableRepository` en `OrderService`, actualizar `order.routes.ts` y los tests existentes. Tests: con mesa válida, con mesa libre, con mesa de otro restaurante y sin `tableId`. (~10 min)
@@ -194,7 +194,7 @@ Con la API arrancada (`npm run dev:api`) y los datos de seed (`npm run seed`). V
 | `people` inválido | `?people=0` o sin parámetro | 400 |
 | Ocupar | `POST /restaurants/$R/tables/{id}/occupy` con `TOKEN_CLIENTE` y `{"people":3}` | 200, `status: "ocupada"` |
 | Doble ocupación | repetir la anterior | 409 `TableNotAvailableError` |
-| Ocupar sin caber | `{"people":99}` | 409 |
+| Ocupar sin caber | `{"people":99}` | 409 `TableCapacityExceededError` |
 | Cambiar estado | `PATCH …/status` con `{"status":"libre"}` y `TOKEN_CAMARERO` | 200 |
 | Estado inválido | `{"status":"rota"}` | 400 `InvalidTableStatusError` |
 | Pedido con mesa ocupada | `POST /orders` con `tableId` de una mesa `ocupada` | 201 |
